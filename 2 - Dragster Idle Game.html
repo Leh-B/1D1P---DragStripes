@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Street Mechanic: ULTIMATE v16</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg: #050505; --panel: #141414; 
+            --accent: #ff0040; --accent-dim: rgba(255, 0, 64, 0.2);
+            --text: #e0e0e0; --success: #00e676; --warning: #ffea00; --info: #2979ff;
+            --tier1: #b2bec3; --tier2: #00d2d3; --tier3: #a29bfe; --tier4: #e056fd;
+        }
+        body { font-family: 'Consolas', 'Segoe UI', monospace; background: var(--bg); color: var(--text); margin: 0; display: flex; height: 100vh; overflow: hidden; user-select: none; }
+        
+        /* --- UI COMPONENTS --- */
+        nav { width: 260px; background: var(--panel); border-right: 1px solid #333; display: flex; flex-direction: column; z-index: 100; box-shadow: 4px 0 10px rgba(0,0,0,0.5); }
+        .brand { padding: 30px; font-size: 22px; font-weight: 900; color: var(--accent); text-align: center; border-bottom: 2px solid #333; letter-spacing: 2px; text-transform: uppercase; text-shadow: 0 0 15px var(--accent-dim); }
+        .version-tag { font-size: 0.5em; color: #666; display: block; margin-top: 5px; cursor: pointer; text-decoration: underline; transition:0.3s }
+        .version-tag:hover { color: var(--accent); }
+        
+        .nav-item { padding: 20px; cursor: pointer; display: flex; align-items: center; gap: 15px; color: #777; transition: 0.2s; border-bottom: 1px solid #222; font-weight: bold; }
+        .nav-item:hover, .nav-item.active { background: var(--accent-dim); color: var(--accent); border-left: 5px solid var(--accent); padding-left: 25px; }
+        .nav-reset { margin-top: auto; color: #ff4444; border-top: 1px solid #333; border-bottom: none; }
+        .nav-reset:hover { background: rgba(255, 0, 0, 0.1); color: #ff0000; border-left: 5px solid #ff0000; }
+
+        main { flex: 1; padding: 0; overflow-y: auto; background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%); position: relative; }
+        .view { display: none; padding: 40px; max-width: 1400px; margin: 0 auto; animation: fadeIn 0.3s; }
+        .view.active { display: block; }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+
+        .hud { position: sticky; top: 0; z-index: 50; display: flex; gap: 20px; background: rgba(20,20,20,0.95); backdrop-filter: blur(5px); padding: 15px 40px; border-bottom: 1px solid #333; align-items: center; justify-content: space-between; }
+        .stat-group { display: flex; gap: 30px; }
+        .stat-pill { font-weight: bold; font-size: 1.2em; display:flex; align-items:center; gap:10px; text-shadow: 0 2px 4px black; }
+        
+        #work-btn { background: linear-gradient(45deg, #222, #333); color: #fff; border: 2px solid #444; padding: 8px 30px; font-weight: bold; border-radius: 50px; cursor: pointer; transition: 0.1s; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        #work-btn:active { transform: scale(0.95); }
+        #work-btn.cooldown { border-color: var(--accent); color: var(--accent); opacity: 0.7; pointer-events: none; }
+
+        /* --- GRID & CARDS --- */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 25px; }
+        .card { background: var(--panel); border: 1px solid #333; border-radius: 6px; padding: 20px; display: flex; flex-direction: column; transition: 0.2s; position: relative; overflow: hidden; }
+        .card:hover { border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        
+        .status-badge { position: absolute; top: 10px; right: 10px; font-size: 0.7em; padding: 4px 8px; border-radius: 4px; font-weight: bold; text-transform: uppercase; z-index: 2; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
+        .st-building { background: #333; color: #aaa; }
+        .st-ready { background: var(--success); color: black; }
+        .st-showroom { background: var(--info); color: white; box-shadow: 0 0 10px var(--info); }
+
+        .car-frame { height: 180px; width: 100%; background: #080808; border-radius: 6px; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; border: 1px solid #333; position: relative; overflow: hidden; transition: 0.3s; }
+        .car-frame img { width: 100%; height: 100%; object-fit: contain; padding: 10px; box-sizing: border-box; }
+        .visual-placeholder { font-size: 5rem; color: #333; transition: 0.3s; filter: drop-shadow(0 5px 10px black); }
+        
+        .tier-1-bg { background: radial-gradient(circle, #2d3436 0%, #000 100%); }
+        .tier-2-bg { background: radial-gradient(circle, #003333 0%, #000 100%); border-color: var(--tier2); }
+        .tier-3-bg { background: radial-gradient(circle, #190033 0%, #000 100%); border-color: var(--tier3); }
+        
+        .st-ready ~ .car-frame, .st-showroom ~ .car-frame { border-color: var(--success); }
+        .st-ready ~ .car-frame .visual-placeholder { color: white; filter: drop-shadow(0 0 15px var(--accent)); transform: scale(1.1); }
+
+        .btn { background: var(--accent); color: white; border: none; padding: 14px; width: 100%; font-weight: 900; cursor: pointer; border-radius: 4px; text-transform: uppercase; margin-top: 10px; transition: 0.2s; letter-spacing: 1px; }
+        .btn:disabled { background: #222; color: #555; cursor: not-allowed; border: 1px solid #333; }
+        .btn:hover:not(:disabled) { background: #ff1a53; box-shadow: 0 0 15px var(--accent-dim); }
+        .btn-mini { padding: 4px 10px; font-size: 0.8em; border-radius: 3px; border: none; cursor: pointer; background: #333; color: #aaa; }
+        .btn-outline { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
+        .btn-outline:hover { background: var(--accent); color: white; }
+
+        /* --- MODALS & OVERLAYS --- */
+        #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 999; display: flex; flex-direction: column; gap: 10px; }
+        .toast { background: #222; border-left: 4px solid var(--accent); padding: 15px 20px; color: white; animation: slideIn 0.3s; box-shadow: 0 5px 15px rgba(0,0,0,0.5); font-weight: bold; }
+        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 200; display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+        .modal-box { width: 600px; background: #1a1a1a; border: 2px solid var(--accent); padding: 30px; max-height: 80vh; overflow-y: auto; box-shadow: 0 0 50px rgba(0,0,0,0.8); position:relative; }
+        
+        .changelog-entry { margin-bottom: 15px; border-bottom: 1px dashed #333; padding-bottom: 10px; }
+        .cl-ver { color: var(--accent); font-weight: bold; font-size: 1.1em; }
+        .cl-txt { color: #aaa; font-size: 0.9em; margin-top: 5px; line-height: 1.4; }
+
+        /* --- MINI-GAME STYLES --- */
+        /* DYNO */
+        #dyno-bar { width: 100%; height: 40px; background: #333; position: relative; border-radius: 20px; overflow: hidden; margin: 30px 0; border: 2px solid #555; }
+        #dyno-target { position: absolute; left: 45%; width: 10%; height: 100%; background: rgba(0, 255, 0, 0.3); border-left: 2px solid #0f0; border-right: 2px solid #0f0; }
+        #dyno-cursor { position: absolute; left: 0%; width: 4px; height: 100%; background: #fff; box-shadow: 0 0 10px #fff; }
+        
+        /* RACE START */
+        #race-lights { display: flex; gap: 20px; margin-bottom: 30px; justify-content: center; }
+        .traffic-light { width: 60px; height: 60px; border-radius: 50%; background: #222; border: 4px solid #111; transition: 0.1s; box-shadow: inset 0 0 20px black; }
+        .light-red.active { background: #ff0040; box-shadow: 0 0 30px #ff0040; }
+        .light-green.active { background: #00e676; box-shadow: 0 0 50px #00e676; }
+        
+        #race-btn-go { font-size: 2em; padding: 20px; width: 100%; display: none; }
+
+        /* MAP */
+        .zone-card { height: 120px; background: #111; border: 1px solid #333; margin-bottom: 15px; cursor: pointer; display: flex; align-items: center; padding: 0 20px; transition: 0.3s; position: relative; overflow: hidden; }
+        .zone-card:hover { border-color: var(--accent); background: #161616; }
+        .zone-card.locked { opacity: 0.4; pointer-events: none; filter: grayscale(1); }
+        .slot-row { display: flex; justify-content: space-between; align-items: center; background: #111; padding: 10px; margin-bottom: 5px; border-radius: 4px; border: 1px solid #222; font-size: 0.9em; }
+        .slot-row.filled { border-color: var(--success); color: var(--success); background: rgba(0, 230, 118, 0.05); }
+        .slot-row.empty { border-style: dashed; color: #666; cursor: pointer; transition: 0.2s; }
+        .slot-row.empty:hover { border-color: var(--accent); color: var(--accent); background: rgba(255, 0, 64, 0.05); }
+        .part-item { padding: 15px; background: #222; margin-bottom: 10px; cursor: pointer; border: 1px solid #333; display: flex; justify-content: space-between; transition: 0.2s; }
+        .part-item:hover { border-color: var(--success); transform: translateX(5px); background: #252525; }
+    </style>
+</head>
+<body>
+
+    <div id="toast-container"></div>
+
+    <div id="changelog-modal" class="overlay">
+        <div class="modal-box">
+            <h2 style="color:var(--accent); text-align:center; border-bottom:1px solid #333; padding-bottom:10px">HISTORIQUE COMPLET</h2>
+            <div id="changelog-content"></div>
+            <button class="btn" style="background:#333; margin-top:20px" onclick="document.getElementById('changelog-modal').style.display='none'">FERMER</button>
+        </div>
+    </div>
+
+    <div id="inventory-modal" class="overlay">
+        <div class="modal-box" style="width:500px">
+            <h3 style="border-bottom:1px solid #333; padding-bottom:10px; margin-top:0">INSTALLER PIÈCE</h3>
+            <div id="modal-parts-list"></div>
+            <button class="btn" style="background:#333; margin-top:20px" onclick="app.ui.closeModal()">FERMER</button>
+        </div>
+    </div>
+
+    <div id="dyno-overlay" class="overlay">
+        <div class="modal-box" style="text-align:center">
+            <h2 style="color:var(--info)">DYNO TUNING</h2>
+            <p>Cliquez quand le curseur est dans la zone verte !</p>
+            <div id="dyno-bar">
+                <div id="dyno-target"></div>
+                <div id="dyno-cursor"></div>
+            </div>
+            <div id="dyno-res" style="font-weight:bold; height:30px; font-size:1.5em"></div>
+            <button id="dyno-btn" class="btn" onclick="app.miniGames.dynoClick()">STOP !</button>
+        </div>
+    </div>
+
+    <nav>
+        <div class="brand">STREET<br>MECHANIC
+            <span class="version-tag" onclick="app.ui.showChangelog()">v16.0 Ultimate</span>
+        </div>
+        <div class="nav-item active" onclick="app.nav('garage')"><i class="fas fa-wrench"></i> Atelier</div>
+        <div class="nav-item" onclick="app.nav('casse')"><i class="fas fa-search"></i> Casse Auto</div>
+        <div class="nav-item" onclick="app.nav('map')"><i class="fas fa-map"></i> Carte Boss</div>
+        <div class="nav-item" onclick="app.nav('showroom')"><i class="fas fa-star"></i> Showroom</div>
+        <div class="nav-item nav-reset" onclick="app.game.hardReset()"><i class="fas fa-skull"></i> RESET SAVE</div>
+    </nav>
+
+    <main>
+        <div class="hud">
+            <div class="stat-group">
+                <div class="stat-pill"><i class="fas fa-wallet" style="color:var(--success)"></i> <span id="ui-money">0</span> €</div>
+                <div class="stat-pill"><i class="fas fa-crown" style="color:var(--info)"></i> <span id="ui-rep">0</span> REP</div>
+            </div>
+            <button id="work-btn" onclick="app.game.manualWork()"><i class="fas fa-hammer"></i> TRAVAILLER (+15€)</button>
+        </div>
+
+        <div id="view-garage" class="view active">
+            <h2 style="border-bottom:2px solid #333; padding-bottom:10px">ATELIER D'ASSEMBLAGE</h2>
+            <div id="garage-list" class="grid"></div>
+        </div>
+
+        <div id="view-casse" class="view">
+            <h2 style="border-bottom:2px solid #333; padding-bottom:10px">CASSE AUTOMOBILE</h2>
+            <div class="card" style="text-align:center; padding:60px; cursor:pointer; border:2px dashed #444; align-items: center;" onclick="app.game.scavenge()">
+                <i class="fas fa-search" style="font-size:5rem; color:#333; transition:0.3s"></i>
+                <h3 style="margin:20px 0 10px 0">FOUILLER LES DÉBRIS</h3>
+                <span id="scavenge-cost" style="color:#888; font-weight:bold">Coût actuel: 100 €</span>
+            </div>
+        </div>
+
+        <div id="view-showroom" class="view">
+            <h2 style="border-bottom:2px solid #333; padding-bottom:10px">SHOWROOM (REVENU RÉPUTATION)</h2>
+            <div id="showroom-stats" style="margin-bottom:20px; color:var(--info); font-weight:bold; font-size:1.2em">
+                GAIN TOTAL: +<span id="ui-rep-rate">0</span> REP/sec
+            </div>
+            <div id="showroom-list" class="grid"></div>
+        </div>
+
+        <div id="view-map" class="view">
+            <h2 style="border-bottom:2px solid #333; padding-bottom:10px">TERRITOIRES RIVAUX</h2>
+            <div id="map-list"></div>
+            
+            <div id="race-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:black; z-index:300; align-items:center; justify-content:center; flex-direction:column;">
+                
+                <div id="race-lights">
+                    <div id="light-1" class="traffic-light"></div>
+                    <div id="light-2" class="traffic-light"></div>
+                    <div id="light-3" class="traffic-light"></div>
+                </div>
+
+                <div style="width:80%; max-width:800px; margin-bottom:30px">
+                    <div style="color:var(--success); font-weight:bold; margin-bottom:5px">VOUS</div>
+                    <div style="height:20px; background:#222; margin-bottom:20px; border-radius:10px; overflow:hidden">
+                        <div id="prog-p" style="height:100%; width:0%; background:var(--success); transition:width 0.1s linear"></div>
+                    </div>
+                    <div style="color:var(--accent); font-weight:bold; margin-bottom:5px">RIVAL (<span id="race-boss-name"></span>)</div>
+                    <div style="height:20px; background:#222; border-radius:10px; overflow:hidden">
+                        <div id="prog-ai" style="height:100%; width:0%; background:var(--accent); transition:width 0.1s linear"></div>
+                    </div>
+                </div>
+
+                <button id="race-btn-go" class="btn" style="background:var(--success); color:black" onmousedown="app.miniGames.raceClick()">GAZ !!!</button>
+
+                <div id="race-res" style="margin-top:20px; font-size:2rem; font-weight:900"></div>
+                <button id="race-btn-quit" class="btn" style="width:200px; margin-top:30px; display:none" onclick="document.getElementById('race-overlay').style.display='none'">QUITTER</button>
+            </div>
+        </div>
+    </main>
+
+<script>
+    /* --- DATA & CONFIG --- */
+    const CHANGELOG = [
+        { ver: "v16.0", txt: "ULTIMATE. Réintégration des mini-jeux : Dyno Tuning (Oscillateur) et Reflex Start (Drag Race)." },
+        { ver: "v15.2", txt: "Fix. Correction du Hard Reset (Clear Interval)." },
+        { ver: "v15.0", txt: "Legacy. Système d'images. Guide tailles." },
+        { ver: "v14.0", txt: "Polish. Cooldown travail manuel." },
+        { ver: "v13.0", txt: "Steel Update. Fiabilité état voiture. Sauvegarde unifiée." },
+        { ver: "v12.0", txt: "Redemption. Retour assemblage manuel. Clicker." },
+        { ver: "v11.0", txt: "Street Kings. Map, Bosses et Réputation." },
+        { ver: "v9.0", txt: "Atmosphere. Météo et Cycle Jour/Nuit (Archivé)." },
+        { ver: "v8.0", txt: "Scarcity. Inflation du coût de la casse." },
+        { ver: "v6.0", txt: "Chimera. Véhicules hybrides (Archivé)." },
+        { ver: "v1.0", txt: "Dragster Idle. Prototype initial." }
+    ];
+
+    const CARS = {
+        'civic': { name: "Civic EG", slots: ['moteur', 'roues', 'trans'], tier: 1, hpBase: 50, icon: 'fa-car-side', img: '' },
+        'golf': { name: "Golf GTI", slots: ['moteur', 'roues', 'trans', 'turbo'], tier: 2, hpBase: 80, icon: 'fa-car-hatchback', img: '' },
+        'skyline': { name: "Skyline R34", slots: ['moteur', 'roues', 'trans', 'turbo', 'ecu'], tier: 3, hpBase: 150, icon: 'fa-car', img: '' }
+    };
+
+    const PARTS = {
+        'eng_1': { name: "Moteur 1.6L", type: 'moteur', hp: 40 },
+        'eng_2': { name: "Moteur 2.0L Turbo", type: 'moteur', hp: 120 },
+        'eng_3': { name: "V8 Big Block", type: 'moteur', hp: 300 },
+        'whl_1': { name: "Pneus Route", type: 'roues', hp: 0 },
+        'whl_2': { name: "Slicks Course", type: 'roues', hp: 10 },
+        'tr_1': { name: "Boîte Manuelle", type: 'trans', hp: 5 },
+        'tr_2': { name: "Boîte Séquentielle", type: 'trans', hp: 15 },
+        'tb_1': { name: "Turbo Stage 1", type: 'turbo', hp: 50 },
+        'ecu_1': { name: "ECU Sport", type: 'ecu', hp: 30 }
+    };
+
+    const BOSSES = [
+        { id: 0, name: "FRANKY", req: 0, cost: 200, hp: 100, reward: 1000 },
+        { id: 1, name: "VINCE", req: 500, cost: 1000, hp: 250, reward: 5000 },
+        { id: 2, name: "ELENA", req: 2000, cost: 5000, hp: 600, reward: 20000 }
+    ];
+
+    /* --- APP --- */
+    const app = {
+        state: {
+            money: 500, rep: 0,
+            inventory: { 'eng_1': 1, 'whl_1': 1, 'tr_1': 1 },
+            garage: [], scavengeCount: 0, beatenBosses: []
+        },
+        saveInterval: null,
+
+        init: function() {
+            this.load();
+            if(this.state.garage.length === 0) this.game.addCar('civic');
+            this.ui.updateAll();
+            this.nav('garage');
+            this.saveInterval = setInterval(() => { this.logic.passiveRep(); this.save(); }, 1000);
+        },
+        save: function() { localStorage.setItem('streetUlt', JSON.stringify(this.state)); },
+        load: function() { let d=localStorage.getItem('streetUlt'); if(d) this.state = {...this.state, ...JSON.parse(d)}; },
+        nav: function(v) { document.querySelectorAll('.view').forEach(e=>e.classList.remove('active')); document.querySelectorAll('.nav-item').forEach(e=>e.classList.remove('active')); document.getElementById('view-'+v).classList.add('active'); this.ui.renderView(v); },
+
+        /* --- LOGIC --- */
+        logic: {
+            passiveRep: function() {
+                let gain = app.state.garage.filter(c => c.status === 'SHOWROOM').reduce((s, c) => s + (CARS[c.model].tier * 5), 0);
+                if(gain>0) { app.state.rep+=gain; app.ui.updateHUD(); document.getElementById('ui-rep-rate').innerText = gain; }
+            },
+            calculateHp: function(car) {
+                let hp = CARS[car.model].hpBase;
+                for(let slot in car.parts) hp += PARTS[car.parts[slot]].hp;
+                // APPLICATION DU BONUS DYNO (TUNING)
+                return Math.floor(hp * (car.tuning || 1.0));
+            },
+            checkReady: function(car) { return CARS[car.model].slots.every(s => Object.keys(car.parts).includes(s)); }
+        },
+
+        /* --- MINI GAMES LOGIC --- */
+        miniGames: {
+            // DYNO VARIABLES
+            dynoActive: false, dynoPos: 0, dynoDir: 1, dynoTarget: 0, dynoCarId: null, dynoInterval: null,
+
+            openDyno: function(carId) {
+                this.dynoCarId = carId;
+                this.dynoTarget = 30 + Math.random() * 40;
+                document.getElementById('dyno-target').style.left = this.dynoTarget + "%";
+                document.getElementById('dyno-overlay').style.display = 'flex';
+                document.getElementById('dyno-res').innerHTML = "";
+                document.getElementById('dyno-btn').disabled = false;
+                this.dynoActive = true;
+                this.dynoPos = 0;
+                
+                this.dynoInterval = setInterval(() => {
+                    this.dynoPos += 2 * this.dynoDir;
+                    if(this.dynoPos > 98 || this.dynoPos < 0) this.dynoDir *= -1;
+                    document.getElementById('dyno-cursor').style.left = this.dynoPos + "%";
+                }, 10);
+            },
+
+            dynoClick: function() {
+                clearInterval(this.dynoInterval);
+                this.dynoActive = false;
+                document.getElementById('dyno-btn').disabled = true;
+                
+                let hit = this.dynoPos >= this.dynoTarget && this.dynoPos <= (this.dynoTarget + 10);
+                let car = app.state.garage.find(c => c.id === this.dynoCarId);
+                
+                if(hit) {
+                    car.tuning = 1.2; // +20% Bonus
+                    document.getElementById('dyno-res').innerHTML = "<span style='color:var(--success)'>PARFAIT ! +20% PUISSANCE</span>";
+                    app.ui.toast("Tuning Parfait !", "success");
+                } else {
+                    car.tuning = 0.8; // -20% Malus
+                    document.getElementById('dyno-res').innerHTML = "<span style='color:var(--accent)'>RATÉ... MOTEUR INSTABLE</span>";
+                    app.ui.toast("Réglage raté...", "error");
+                }
+                
+                car.hp = app.logic.calculateHp(car); // Recalc HP immediately
+                setTimeout(() => { document.getElementById('dyno-overlay').style.display='none'; app.ui.renderView('garage'); }, 2000);
+            },
+
+            // RACE START VARIABLES
+            raceBoss: null, raceCar: null, raceGreenTime: 0, raceStarted: false,
+
+            setupRace: function(bossId) {
+                let boss = BOSSES.find(b => b.id === bossId);
+                let car = app.state.garage.find(c => c.status === 'READY');
+                if(!car) return app.ui.toast("Pas de voiture prête !", "error");
+                if(app.state.money < boss.cost) return app.ui.toast("Pas assez d'argent !", "error");
+
+                this.raceBoss = boss;
+                this.raceCar = car;
+                app.state.money -= boss.cost;
+                app.ui.updateHUD();
+
+                document.getElementById('race-overlay').style.display = 'flex';
+                document.getElementById('race-boss-name').innerText = boss.name;
+                document.getElementById('race-btn-go').style.display = 'block';
+                document.getElementById('race-btn-quit').style.display = 'none';
+                document.getElementById('race-res').innerHTML = "";
+                document.getElementById('prog-p').style.width = "0%";
+                document.getElementById('prog-ai').style.width = "0%";
+                
+                // Reset Lights
+                document.querySelectorAll('.traffic-light').forEach(l => l.className = 'traffic-light');
+
+                this.startCountdown();
+            },
+
+            startCountdown: function() {
+                this.raceStarted = false;
+                setTimeout(() => document.getElementById('light-1').classList.add('light-red', 'active'), 1000);
+                setTimeout(() => document.getElementById('light-2').classList.add('light-red', 'active'), 2000);
+                
+                let randomDelay = 2500 + Math.random() * 1500;
+                setTimeout(() => {
+                    document.querySelectorAll('.traffic-light').forEach(l => {
+                        l.classList.remove('light-red');
+                        l.classList.add('light-green', 'active');
+                    });
+                    this.raceGreenTime = Date.now();
+                    this.raceStarted = true;
+                }, randomDelay);
+            },
+
+            raceClick: function() {
+                let btn = document.getElementById('race-btn-go');
+                btn.style.display = 'none'; // Hide button to prevent double click
+                
+                let reaction = Date.now() - this.raceGreenTime;
+                let boost = 1.0;
+
+                if(!this.raceStarted) {
+                    app.ui.toast("FAUX DÉPART !", "error");
+                    boost = 0.5; // Penalty
+                } else if(reaction < 300) {
+                    app.ui.toast("DÉPART PARFAIT !", "success");
+                    boost = 1.5; // Boost
+                } else {
+                    app.ui.toast("Départ normal", "info");
+                }
+                
+                this.runRaceAnimation(boost);
+            },
+
+            runRaceAnimation: function(boost) {
+                let p = 0, ai = 0;
+                // Boost affecte la vitesse initiale
+                let spd = (this.raceCar.hp / 10) * boost;
+                let aiSpd = this.raceBoss.hp / 10;
+
+                let int = setInterval(() => {
+                    // Slight randomization per tick
+                    p += spd * (0.9 + Math.random() * 0.2);
+                    ai += aiSpd * (0.9 + Math.random() * 0.2);
+
+                    document.getElementById('prog-p').style.width = Math.min(100, p/5) + "%";
+                    document.getElementById('prog-ai').style.width = Math.min(100, ai/5) + "%";
+
+                    if(p >= 500 || ai >= 500) {
+                        clearInterval(int);
+                        let win = p > ai;
+                        document.getElementById('race-btn-quit').style.display = 'block';
+                        
+                        if(win) {
+                            document.getElementById('race-res').innerHTML = "<span style='color:var(--success)'>VICTOIRE !</span>";
+                            app.state.money += this.raceBoss.reward;
+                            if(!app.state.beatenBosses.includes(this.raceBoss.id)) app.state.beatenBosses.push(this.raceBoss.id);
+                        } else {
+                            document.getElementById('race-res').innerHTML = "<span style='color:var(--accent)'>DÉFAITE...</span>";
+                        }
+                        app.ui.updateHUD();
+                    }
+                }, 50);
+            }
+        },
+
+        /* --- GAMEPLAY --- */
+        game: {
+            manualWork: function() {
+                let btn = document.getElementById('work-btn'); if(btn.classList.contains('cooldown')) return;
+                app.state.money += 15; app.ui.updateHUD();
+                btn.classList.add('cooldown'); btn.innerHTML = "<i class='fas fa-clock'></i> REPOS...";
+                setTimeout(() => { btn.classList.remove('cooldown'); btn.innerHTML = "<i class='fas fa-hammer'></i> TRAVAILLER (+15€)"; }, 1000);
+            },
+            hardReset: function() { if(confirm("RESET TOTAL ?")) { clearInterval(app.saveInterval); localStorage.removeItem('streetUlt'); location.reload(); } },
+            scavenge: function() {
+                let cost = 100 + (app.state.scavengeCount * 15);
+                if(app.state.money < cost) return app.ui.toast("Pas assez d'argent !", "error");
+                app.state.money -= cost; app.state.scavengeCount++;
+                document.getElementById('scavenge-cost').innerText = `Coût actuel: ${cost + 15} €`;
+                let rng = Math.random();
+                if(rng < 0.1) { let k = Object.keys(CARS)[Math.floor(Math.random()*Object.keys(CARS).length)]; app.game.addCar(k); app.ui.toast(`Épave: ${CARS[k].name}`, "success"); }
+                else if(rng < 0.7) { let k = Object.keys(PARTS)[Math.floor(Math.random()*Object.keys(PARTS).length)]; app.state.inventory[k] = (app.state.inventory[k]||0)+1; app.ui.toast(`Pièce: ${PARTS[k].name}`, "info"); }
+                else app.ui.toast("Rien trouvé...", "warning");
+                app.ui.updateHUD();
+            },
+            addCar: function(model) { app.state.garage.push({ id: Date.now(), model: model, parts: {}, status: 'BUILDING', hp: CARS[model].hpBase, tuning: 1.0 }); },
+            installPart: function(carId, slot, partKey) {
+                let c = app.state.garage.find(x => x.id === carId);
+                if(c.parts[slot]) app.state.inventory[c.parts[slot]]++;
+                app.state.inventory[partKey]--; c.parts[slot] = partKey;
+                // Reset tuning on change
+                c.tuning = 1.0; c.hp = app.logic.calculateHp(c);
+                app.ui.closeModal(); app.ui.renderView('garage'); app.ui.toast("Pièce installée", "success");
+            },
+            removePart: function(carId, slot) {
+                let c = app.state.garage.find(x => x.id === carId);
+                if(c.status === 'SHOWROOM') return app.ui.toast("Impossible: Voiture au Showroom", "error");
+                app.state.inventory[c.parts[slot]]++; delete c.parts[slot];
+                c.status = 'BUILDING'; c.tuning = 1.0; c.hp = app.logic.calculateHp(c);
+                app.ui.renderView('garage');
+            },
+            startEngine: function(carId) {
+                let c = app.state.garage.find(x => x.id === carId);
+                c.status = 'READY'; app.ui.toast("Moteur OK ! Prête pour le Dyno ou la Course.", "success");
+                app.ui.renderView('garage');
+            },
+            toggleShowroom: function(carId) {
+                let c = app.state.garage.find(x => x.id === carId);
+                if(c.status === 'READY') { c.status = 'SHOWROOM'; app.ui.toast("Véhicule Exposé", "info"); }
+                else if(c.status === 'SHOWROOM') { c.status = 'READY'; app.ui.toast("Véhicule Retiré", "warning"); }
+                app.ui.updateAll();
+            }
+        },
+
+        /* --- UI --- */
+        ui: {
+            toast: function(msg, type) {
+                let d = document.createElement('div'); d.className = 'toast';
+                d.style.borderColor = type==='error'?'#ff0040':(type==='success'?'#00e676':'#2979ff');
+                d.innerText = msg; document.getElementById('toast-container').appendChild(d); setTimeout(()=>d.remove(), 3000);
+            },
+            updateHUD: function() { document.getElementById('ui-money').innerText = Math.floor(app.state.money); document.getElementById('ui-rep').innerText = Math.floor(app.state.rep); },
+            updateAll: function() { this.updateHUD(); let active = document.querySelector('.view.active'); if(active) this.renderView(active.id.replace('view-', '')); },
+            showChangelog: function() {
+                let div = document.getElementById('changelog-content'); div.innerHTML = "";
+                CHANGELOG.forEach(l => { div.innerHTML += `<div class="changelog-entry"><div class="cl-ver">${l.ver}</div><div class="cl-txt">${l.txt}</div></div>`; });
+                document.getElementById('changelog-modal').style.display = 'flex';
+            },
+            getCarVisual: function(car) {
+                let def = CARS[car.model];
+                let inner = def.img && def.img.length > 5 ? `<img src="${def.img}">` : `<div class="visual-placeholder"><i class="fas ${def.icon}"></i></div>`;
+                return `<div class="car-frame tier-${def.tier}-bg">${inner}</div>`;
+            },
+            renderView: function(viewName) {
+                if(viewName === 'garage') {
+                    let grid = document.getElementById('garage-list'); grid.innerHTML = "";
+                    app.state.garage.forEach(c => {
+                        if(c.status === 'SHOWROOM') return;
+                        let def = CARS[c.model];
+                        let slotsHtml = "";
+                        def.slots.forEach(s => {
+                            if(c.parts[s]) slotsHtml += `<div class="slot-row filled"><span>${PARTS[c.parts[s]].name}</span> <button class="btn-mini" onclick="app.game.removePart(${c.id}, '${s}')">X</button></div>`;
+                            else slotsHtml += `<div class="slot-row empty" onclick="app.ui.openPartModal(${c.id}, '${s}')">+ ${s.toUpperCase()}</div>`;
+                        });
+                        let isBuildable = app.logic.checkReady(c);
+                        let statusHtml = c.status === 'BUILDING' ? '<div class="status-badge st-building">CHANTIER</div>' : '<div class="status-badge st-ready">PRÊT</div>';
+                        
+                        // ACTION BUTTONS
+                        let actionBtn = "";
+                        if(c.status === 'READY') {
+                            actionBtn = `
+                            <div style="display:flex; gap:5px; margin-top:10px">
+                                <button class="btn btn-outline" onclick="app.miniGames.openDyno(${c.id})"><i class="fas fa-sliders-h"></i> DYNO</button>
+                                <button class="btn btn-outline" style="border-color:var(--info); color:var(--info)" onclick="app.game.toggleShowroom(${c.id})">EXPOSER</button>
+                            </div>`;
+                        } else {
+                            actionBtn = `<button class="btn" onclick="app.game.startEngine(${c.id})" ${isBuildable?'':'disabled'}>${isBuildable?'DÉMARRER':'INCOMPLET'}</button>`;
+                        }
+
+                        let tuningDisplay = c.tuning && c.tuning !== 1.0 
+                            ? (c.tuning > 1.0 ? `<span style="color:var(--success)"> (Tuned +20%)</span>` : `<span style="color:var(--accent)"> (Déréglé)</span>`) 
+                            : "";
+
+                        grid.innerHTML += `<div class="card">${statusHtml}<h3>${def.name}</h3>${this.getCarVisual(c)}<div style="margin-bottom:10px; font-weight:bold">HP: ${c.hp}${tuningDisplay}</div><div>${slotsHtml}</div>${actionBtn}</div>`;
+                    });
+                } else if(viewName === 'showroom') {
+                    let grid = document.getElementById('showroom-list'); grid.innerHTML = "";
+                    app.state.garage.filter(c => c.status === 'SHOWROOM').forEach(c => {
+                        grid.innerHTML += `<div class="card" style="border-color:var(--info)"><div class="status-badge st-showroom">EXPOSÉ</div><h3>${CARS[c.model].name}</h3>${this.getCarVisual(c)}<div style="text-align:center; color:var(--info); font-weight:bold; margin-bottom:10px">+${CARS[c.model].tier*5} REP/sec</div><button class="btn" onclick="app.game.toggleShowroom(${c.id})">RETIRER</button></div>`;
+                    });
+                } else if(viewName === 'map') {
+                    let list = document.getElementById('map-list'); list.innerHTML = "";
+                    BOSSES.forEach(b => {
+                        let locked = app.state.rep < b.req;
+                        let beaten = app.state.beatenBosses.includes(b.id);
+                        let extraClass = locked ? 'locked' : '';
+                        let statusIcon = locked ? '<i class="fas fa-lock"></i>' : (beaten ? '<i class="fas fa-check-circle" style="color:var(--success)"></i>' : '<i class="fas fa-skull"></i>');
+                        list.innerHTML += `<div class="zone-card ${extraClass}" onclick="${locked?'':'app.miniGames.setupRace('+b.id+')'}"><div style="display:flex; align-items:center"><div class="boss-icon">${statusIcon}</div><div><h3 style="margin:0">${b.name}</h3><div style="color:#777">Requis: ${b.req} REP</div></div></div><div style="text-align:right"><div style="color:var(--accent); font-weight:bold">Coût: ${b.cost}€</div><div style="color:var(--success)">Gain: ${b.reward}€</div></div></div>`;
+                    });
+                }
+            },
+            openPartModal: function(carId, slot) {
+                let list = document.getElementById('modal-parts-list'); list.innerHTML = "";
+                let compatible = Object.keys(app.state.inventory).filter(k => app.state.inventory[k] > 0 && PARTS[k].type === slot);
+                if(compatible.length === 0) list.innerHTML = "<div style='padding:20px; text-align:center; color:#777'>Rien en stock...</div>";
+                else { compatible.forEach(k => { list.innerHTML += `<div class="part-item" onclick="app.game.installPart(${carId}, '${slot}', '${k}')"><span>${PARTS[k].name}</span> <strong style="color:var(--success)">+${PARTS[k].hp}HP</strong></div>`; }); }
+                document.getElementById('inventory-modal').style.display = 'flex';
+            },
+            closeModal: function() { document.getElementById('inventory-modal').style.display = 'none'; }
+        }
+    };
+
+    app.init();
+</script>
+</body>
+</html>
